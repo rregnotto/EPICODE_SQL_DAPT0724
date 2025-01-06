@@ -24,7 +24,7 @@ INNER JOIN
 	dimproductsubcategory as S
 ON
 	P.productsubcategorykey = S.productsubcategorykey
-LEFT JOIN
+INNER JOIN
 	dimproductcategory as C
 ON
 	S.productcategorykey = C.productcategorykey;
