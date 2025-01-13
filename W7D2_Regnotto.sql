@@ -72,7 +72,31 @@ ON
 GROUP BY
 	OrderDate, p.ProductKey, EnglishProductName
 HAVING 
-	OrderDate >= '2020-01-01';
+	OrderDate >= '2020-01-01'
+ORDER BY
+	FatturatoTot DESC;
+
+-- correzione AVGprice - Salvatore
+
+SELECT
+	p.EnglishProductName,
+	SUM(f.SalesAmount) as FatturatoTot,
+    SUM(f.OrderQuantity) as TotaleVenduti,
+    SUM(f.SalesAmount)/SUM(f.OrderQuantity) as PrezzoMedio1,
+    AVG(f.UnitPrice) as PrezzoMedio2
+FROM
+	factresellersales as f
+LEFT JOIN
+	dimproduct as p
+ON
+	f.ProductKey = p.ProductKey
+GROUP BY
+	OrderDate, p.ProductKey, EnglishProductName
+HAVING 
+	OrderDate >= '2020-01-01'
+ORDER BY
+	FatturatoTot DESC;
+
 
 -- Es 5 Calcola il fatturato totale (FactResellerSales.SalesAmount) e la quantità totale venduta (FactResellerSales.OrderQuantity) per Categoria prodotto (DimProductCategory). 
 -- Il result set deve esporre pertanto il nome della categoria prodotto, il fatturato totale e la quantità totale venduta. 
@@ -97,7 +121,7 @@ INNER JOIN
 ON
 	sub.productcategorykey = c.productcategorykey
 GROUP BY
-	EnglishProductCategoryName;
+	c.EnglishProductCategoryName;
 
 -- Es 6 Calcola il fatturato totale per area città (DimGeography.City) realizzato a partire dal 1 Gennaio 2020. 
 -- Il result set deve esporre lʼelenco delle città con fatturato realizzato superiore a 60K.
@@ -107,7 +131,7 @@ SELECT
     City
 FROM
 	factresellersales AS f
-INNER JOIN
+LEFT JOIN
 	dimgeography AS g
 ON
 	f.SalesTerritoryKey = g.SalesTerritoryKey
@@ -117,3 +141,56 @@ GROUP BY
 	City
 HAVING
 	SUM(SalesAmount) > 60000;
+
+
+/*6.Calcola il fatturato totale per area città (DimGeography.City) realizzato a partire dal 1 Gennaio 2020. 
+Il result set deve esporre l’elenco delle città con fatturato realizzato superiore a 60K.*/
+
+SELECT CITY AS CITTA, 
+SUM(SalesAmount) AS FATTURATO
+-- , SUM(OrderQuantity) AS QUANT, AVG(UnitPrice) AS PREZZO_MEDIO_TOT, SUM(SalesAmount)/SUM(OrderQuantity)  -- , SUM(OrderQuantity)*AVG(UnitPrice)-SUM(SalesAmount)
+FROM adventureworksdw.factresellersales A
+LEFT JOIN dimproduct B ON A.ProductKey=B.ProductKey
+-- LEFT JOIN dimproductsubcategory D ON B.ProductSubcategoryKey=D.ProductSubcategoryKey
+-- LEFT JOIN dimproductcategory C ON C.ProductCategoryKey=D.ProductCategoryKey
+LEFT JOIN dimreseller E ON E.ResellerKey=A.ResellerKey
+LEFT JOIN dimgeography F ON F.GeographyKey=E.GeographyKey
+WHERE A.ORDERDATE >= '2020-01-01'
+GROUP BY 1
+HAVING SUM(SalesAmount) >60000
+ORDER BY 2 DESC;
+
+-- deepdive chiave di join NON CORRETTA (Factresellersales->dimgeography tramite SALESTERRITORYKEY)
+ -- --> A toronto sono associati non solo gli store effettivamente presenti nella città di TORONTO 
+ -- ma anche tutti quelli del Territorio con SALESTERRITORYKEY=6 (CANADA)
+select resellerkey, e.GeographyKey, SalesTerritoryKey, city
+from dimreseller e
+left join dimgeography F ON F.GeographyKey=E.GeographyKey
+where resellerkey in (SELECT 
+distinct resellerkey
+FROM ADV.factresellersales A
+-- LEFT JOIN dimproduct B ON A.ProductKey=B.ProductKey
+-- LEFT JOIN dimproductsubcategory D ON B.ProductSubcategoryKey=D.ProductSubcategoryKey
+-- LEFT JOIN dimproductcategory C ON C.ProductCategoryKey=D.ProductCategoryKey
+-- LEFT JOIN dimreseller E ON E.ResellerKey=A.ResellerKey
+LEFT JOIN dimgeography F ON F.SalesTerritoryKey=A.SalesTerritoryKey
+WHERE A.ORDERDATE >= '2020-01-01'
+and F.city='Toronto');
+
+
+
+-- deepdive chiave di join corretta (dimreseller->dimgeography)
+ -- --> A toronto sono associati solo gli store effettivamente presenti in città
+select resellerkey, e.GeographyKey, SalesTerritoryKey, city
+from dimreseller e
+left join dimgeography F ON F.GeographyKey=E.GeographyKey
+where resellerkey in (SELECT 
+distinct e.resellerkey
+FROM ADV.factresellersales A
+-- LEFT JOIN dimproduct B ON A.ProductKey=B.ProductKey
+-- LEFT JOIN dimproductsubcategory D ON B.ProductSubcategoryKey=D.ProductSubcategoryKey
+-- LEFT JOIN dimproductcategory C ON C.ProductCategoryKey=D.ProductCategoryKey
+ LEFT JOIN dimreseller E ON E.ResellerKey=A.ResellerKey
+LEFT JOIN dimgeography F ON F.GeographyKey=e.GeographyKey
+WHERE A.ORDERDATE >= '2020-01-01'
+and F.city='Toronto');
